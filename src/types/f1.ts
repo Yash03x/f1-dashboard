@@ -1,150 +1,351 @@
-// F1 Data Types
+// F1 Dashboard Enterprise Types
+// These types match our PostgreSQL database schema
+
 export interface Season {
-  season: string;
-  url: string;
+  id: string
+  year: number
+  name: string
+  last_synced?: Date
+  data_completeness: number
+  is_active: boolean
+  created_at: Date
+  updated_at: Date
 }
 
 export interface Circuit {
-  circuitId: string;
-  url: string;
-  circuitName: string;
-  location: Location;
-}
-
-export interface Location {
-  lat: string;
-  long: string;
-  locality: string;
-  country: string;
-}
-
-export interface Driver {
-  driverId: string;
-  url: string;
-  givenName: string;
-  familyName: string;
-  dateOfBirth: string;
-  nationality: string;
-  code?: string;
-  permanentNumber?: string;
+  id: string
+  name: string
+  location?: string
+  country?: string
+  latitude?: number
+  longitude?: number
+  altitude?: number
+  url?: string
+  created_at: Date
 }
 
 export interface Constructor {
-  constructorId: string;
-  url: string;
-  name: string;
-  nationality: string;
+  id: string
+  name: string
+  nationality?: string
+  url?: string
+  is_active: boolean
+  created_at: Date
+  updated_at: Date
+}
+
+export interface Driver {
+  id: string
+  driver_code?: string
+  first_name: string
+  last_name: string
+  nationality?: string
+  date_of_birth?: Date
+  url?: string
+  is_active: boolean
+  created_at: Date
+  updated_at: Date
 }
 
 export interface Race {
-  season: string;
-  round: string;
-  url: string;
-  raceName: string;
-  circuit: Circuit;
-  date: string;
-  time?: string;
-  results?: RaceResult[];
-  qualifying?: QualifyingResult[];
+  id: number
+  season_id: string
+  circuit_id?: string
+  round: number
+  race_name: string
+  race_date?: Date
+  qualifying_date?: Date
+  sprint_date?: Date
+  
+  // Pre-loaded data (JSONB)
+  race_results?: RaceResult[]
+  qualifying_results?: QualifyingResult[]
+  sprint_results?: SprintResult[]
+  lap_times?: LapTime[]
+  pit_stops?: PitStop[]
+  fastest_laps?: FastestLap[]
+  
+  // Metadata
+  status: string
+  weather_data?: WeatherData
+  track_conditions?: TrackConditions
+  
+  // Joined data
+  circuit_name?: string
+  circuit_country?: string
+  circuit_location?: string
+  season_year?: number
+  
+  created_at: Date
+  updated_at: Date
 }
 
 export interface RaceResult {
-  number: string;
-  position: string;
-  positionText: string;
-  points: string;
-  driver: Driver;
-  constructor: Constructor;
-  grid: string;
-  laps: string;
-  status: string;
-  time?: Time;
-  fastestLap?: FastestLap;
+  position: number
+  driver_id: string
+  constructor_id: string
+  driver_name?: string
+  constructor_name?: string
+  grid: number
+  laps: number
+  status: string
+  time?: string
+  points: number
+  fastest_lap?: string
+  fastest_lap_rank?: number
 }
 
 export interface QualifyingResult {
-  number: string;
-  position: string;
-  driver: Driver;
-  constructor: Constructor;
-  q1?: string;
-  q2?: string;
-  q3?: string;
+  position: number
+  driver_id: string
+  constructor_id: string
+  driver_name?: string
+  constructor_name?: string
+  q1?: string
+  q2?: string
+  q3?: string
 }
 
-export interface Time {
-  millis?: string;
-  time?: string;
+export interface SprintResult {
+  position: number
+  driver_id: string
+  constructor_id: string
+  driver_name?: string
+  constructor_name?: string
+  grid: number
+  laps: number
+  status: string
+  time?: string
+  points: number
+}
+
+export interface LapTime {
+  driver_id: string
+  lap: number
+  position: number
+  time: string
+  milliseconds: number
+}
+
+export interface PitStop {
+  driver_id: string
+  stop: number
+  lap: number
+  time: string
+  duration: string
+  milliseconds: number
 }
 
 export interface FastestLap {
-  rank: string;
-  lap: string;
-  time: Time;
-  averageSpeed: AverageSpeed;
+  driver_id: string
+  lap: number
+  time: string
+  rank: number
 }
 
-export interface AverageSpeed {
-  units: string;
-  speed: string;
+export interface WeatherData {
+  temperature: number
+  humidity: number
+  pressure: number
+  wind_speed: number
+  wind_direction: number
+  conditions: string
 }
 
-export interface Standing {
-  position: string;
-  positionText: string;
-  points: string;
-  wins: string;
-  driver?: Driver;
-  constructor?: Constructor;
-  constructorStandings?: Standing[];
+export interface TrackConditions {
+  track_temperature: number
+  air_temperature: number
+  humidity: number
+  grip_level: string
 }
 
-// OpenF1 API Types
-export interface SessionInfo {
-  country_code: string;
-  country_key: number;
-  country_name: string;
-  circuit_key: number;
-  circuit_short_name: string;
-  date_start: string;
-  date_end: string;
-  gmt_offset: string;
-  location: string;
-  meeting_key: number;
-  session_key: number;
-  session_name: string;
-  session_type: string;
-  year: number;
+export interface DriverStanding {
+  id: number
+  season_id: string
+  race_id: number
+  driver_id: string
+  position: number
+  points: number
+  wins: number
+  podiums: number
+  fastest_laps: number
+  races_entered: number
+  races_finished: number
+  dnf_count: number
+  
+  // Joined data
+  first_name?: string
+  last_name?: string
+  driver_code?: string
+  nationality?: string
+  constructor_name?: string
+  
+  created_at: Date
+  updated_at: Date
 }
 
-export interface LapData {
-  date_start: string;
-  driver_number: number;
-  duration_sector_1?: number;
-  duration_sector_2?: number;
-  duration_sector_3?: number;
-  i1_speed?: number;
-  i2_speed?: number;
-  is_pit_out_lap: boolean;
-  lap_duration?: number;
-  lap_number: number;
-  meeting_key: number;
-  segments_sector_1: number[];
-  segments_sector_2: number[];
-  segments_sector_3: number[];
-  session_key: number;
-  st_speed?: number;
+export interface ConstructorStanding {
+  id: number
+  season_id: string
+  race_id: number
+  constructor_id: string
+  position: number
+  points: number
+  wins: number
+  podiums: number
+  fastest_laps: number
+  races_entered: number
+  races_finished: number
+  dnf_count: number
+  
+  // Joined data
+  constructor_name?: string
+  nationality?: string
+  
+  created_at: Date
+  updated_at: Date
 }
 
-export interface CarData {
-  brake: number;
-  date: string;
-  driver_number: number;
-  drs: number;
-  meeting_key: number;
-  n_gear: number;
-  rpm: number;
-  session_key: number;
-  speed: number;
-  throttle: number;
+export interface DriverConstructorSeason {
+  id: number
+  season_id: string
+  driver_id: string
+  constructor_id: string
+  car_number?: number
+  is_reserve: boolean
+  start_race?: number
+  end_race?: number
+  created_at: Date
+}
+
+export interface TelemetryData {
+  id: string
+  race_id: number
+  driver_id: string
+  lap_number: number
+  sector_number?: number
+  timestamp: Date
+  speed?: number
+  throttle?: number
+  brake?: number
+  gear?: number
+  rpm?: number
+  engine_rpm?: number
+  fuel_flow?: number
+  fuel_remaining?: number
+  x_position?: number
+  y_position?: number
+  z_position?: number
+  track_temperature?: number
+  air_temperature?: number
+  humidity?: number
+  created_at: Date
+}
+
+export interface DataSyncLog {
+  id: number
+  sync_type: string
+  season_id?: string
+  race_id?: number
+  status: string
+  records_processed: number
+  records_created: number
+  records_updated: number
+  records_failed: number
+  started_at: Date
+  completed_at?: Date
+  duration_ms?: number
+  error_message?: string
+  error_stack?: string
+  created_at: Date
+}
+
+export interface CacheInvalidation {
+  id: number
+  cache_key: string
+  invalidation_reason?: string
+  invalidated_at: Date
+  processed_at?: Date
+}
+
+// API Response types
+export interface ApiResponse<T> {
+  data: T
+  success: boolean
+  message?: string
+  timestamp: Date
+}
+
+export interface PaginatedResponse<T> {
+  data: T[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+  success: boolean
+  message?: string
+  timestamp: Date
+}
+
+// Legacy types for backward compatibility
+export interface LegacyRace {
+  id: string
+  name: string
+  date: string
+  country: string
+  winner?: string
+  status: string
+  round?: number
+}
+
+export interface LegacyDriver {
+  id: string
+  name: string
+  nationality: string
+  constructor: string
+  points: number
+  position: number
+}
+
+export interface LegacyConstructor {
+  id: string
+  name: string
+  nationality: string
+  points: number
+  position: number
+}
+
+// Utility types
+export type SeasonId = string
+export type RaceId = number
+export type DriverId = string
+export type ConstructorId = string
+
+// Chart data types
+export interface ChartDataPoint {
+  x: string | number | Date
+  y: number
+  label?: string
+  color?: string
+}
+
+export interface ChartSeries {
+  name: string
+  data: ChartDataPoint[]
+  color?: string
+}
+
+export interface ChartConfig {
+  title: string
+  xAxis: {
+    title: string
+    type: 'category' | 'number' | 'datetime'
+  }
+  yAxis: {
+    title: string
+    type: 'number'
+  }
+  series: ChartSeries[]
 }
