@@ -1,0 +1,423 @@
+// Enterprise-Grade F1 Database Schema
+// Optimized for high-performance queries and analytics
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["prismaSchemaFolder", "postgresqlExtensions"]
+}
+
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../docs/database-schema.svg"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [postgis, pg_trgm, btree_gin, pg_stat_statements]
+}
+
+// ========================================
+// CORE F1 ENTITIES
+// ========================================
+
+model Season {
+  id     String @id // "2024", "2023", etc.
+  year   Int    @unique
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  races         Race[]
+  drivers       Driver[]
+  constructors  Constructor[]
+  driverStandings     DriverStanding[]
+  constructorStandings ConstructorStanding[]
+  
+  @@map("seasons")
+  @@index([year])
+}
+
+model Circuit {
+  id          String @id // "monaco", "silverstone", etc.
+  name        String
+  fullName    String
+  country     String
+  locality    String
+  latitude    Float
+  longitude   Float
+  url         String?
+  
+  // Performance data
+  lapRecord   Float?
+  lapRecordDriver String?
+  lapRecordYear   Int?
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  races Race[]
+  
+  @@map("circuits")
+  @@index([country])
+  @@index([name])
+}
+
+model Driver {
+  id              String @id // "hamilton", "verstappen", etc.
+  code            String @unique // "HAM", "VER", etc.
+  permanentNumber Int?   @unique
+  givenName       String
+  familyName      String
+  nationality     String
+  dateOfBirth     DateTime
+  url             String?
+  
+  // Career stats (denormalized for performance)
+  totalPoints     Float  @default(0)
+  totalWins       Int    @default(0)
+  totalPodiums    Int    @default(0)
+  totalPoles      Int    @default(0)
+  totalFastestLaps Int   @default(0)
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  seasons           Season[]
+  raceResults       RaceResult[]
+  qualifyingResults QualifyingResult[]
+  driverStandings   DriverStanding[]
+  lapTimes          LapTime[]
+  telemetryData     TelemetryData[]
+  
+  @@map("drivers")
+  @@index([code])
+  @@index([familyName])
+  @@index([nationality])
+}
+
+model Constructor {
+  id           String @id // "red_bull", "ferrari", etc.
+  name         String @unique
+  nationality  String
+  url          String?
+  
+  // Team colors for visualization
+  primaryColor   String @default("#000000")
+  secondaryColor String @default("#FFFFFF")
+  
+  // Career stats (denormalized)
+  totalPoints     Float @default(0)
+  totalWins       Int   @default(0)
+  totalPodiums    Int   @default(0)
+  totalPoles      Int   @default(0)
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  seasons               Season[]
+  raceResults           RaceResult[]
+  qualifyingResults     QualifyingResult[]
+  constructorStandings  ConstructorStanding[]
+  
+  @@map("constructors")
+  @@index([name])
+  @@index([nationality])
+}
+
+// ========================================
+// RACE EVENTS & RESULTS
+// ========================================
+
+model Race {
+  id        String   @id @default(cuid())
+  season    String
+  round     Int
+  name      String
+  date      DateTime
+  time      DateTime?
+  url       String?
+  
+  // Weather and track conditions
+  weather     String?
+  temperature Float?
+  humidity    Float?
+  
+  // Race statistics (denormalized for performance)
+  totalLaps       Int?
+  fastestLapTime  Float?
+  fastestLapDriver String?
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  seasonRef         Season @relation(fields: [season], references: [id])
+  circuit           Circuit @relation(fields: [circuitId], references: [id])
+  circuitId         String
+  raceResults       RaceResult[]
+  qualifyingResults QualifyingResult[]
+  lapTimes          LapTime[]
+  telemetryData     TelemetryData[]
+  
+  @@unique([season, round])
+  @@map("races")
+  @@index([season, round])
+  @@index([date])
+}
+
+model RaceResult {
+  id              String @id @default(cuid())
+  position        Int
+  positionText    String // "1", "2", "DNF", "DSQ", etc.
+  points          Float
+  grid            Int
+  laps            Int
+  status          String
+  time            String? // Race time or gap
+  milliseconds    Int?    // For precise timing
+  fastestLap      Int?    // Lap number
+  fastestLapTime  String?
+  fastestLapSpeed Float?
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  race          Race        @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  raceId        String
+  driver        Driver      @relation(fields: [driverId], references: [id])
+  driverId      String
+  constructor   Constructor @relation(fields: [constructorId], references: [id])
+  constructorId String
+  
+  @@unique([raceId, driverId])
+  @@map("race_results")
+  @@index([raceId, position])
+  @@index([driverId])
+  @@index([points])
+}
+
+model QualifyingResult {
+  id        String  @id @default(cuid())
+  position  Int
+  q1        String? // Qualifying time or DNF
+  q2        String?
+  q3        String?
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  race          Race        @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  raceId        String
+  driver        Driver      @relation(fields: [driverId], references: [id])
+  driverId      String
+  constructor   Constructor @relation(fields: [constructorId], references: [id])
+  constructorId String
+  
+  @@unique([raceId, driverId])
+  @@map("qualifying_results")
+  @@index([raceId, position])
+  @@index([driverId])
+}
+
+// ========================================
+// CHAMPIONSHIP STANDINGS
+// ========================================
+
+model DriverStanding {
+  id           String @id @default(cuid())
+  position     Int
+  points       Float
+  wins         Int
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  season   Season @relation(fields: [seasonId], references: [id])
+  seasonId String
+  driver   Driver @relation(fields: [driverId], references: [id])
+  driverId String
+  
+  @@unique([seasonId, driverId])
+  @@map("driver_standings")
+  @@index([seasonId, position])
+  @@index([points])
+}
+
+model ConstructorStanding {
+  id           String @id @default(cuid())
+  position     Int
+  points       Float
+  wins         Int
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  season        Season      @relation(fields: [seasonId], references: [id])
+  seasonId      String
+  constructor   Constructor @relation(fields: [constructorId], references: [id])
+  constructorId String
+  
+  @@unique([seasonId, constructorId])
+  @@map("constructor_standings")
+  @@index([seasonId, position])
+  @@index([points])
+}
+
+// ========================================
+// TELEMETRY & TIMING DATA
+// ========================================
+
+model LapTime {
+  id           String @id @default(cuid())
+  lap          Int
+  time         String
+  milliseconds Int
+  
+  // Additional timing data
+  sector1Time  String?
+  sector2Time  String?
+  sector3Time  String?
+  sector1Ms    Int?
+  sector2Ms    Int?
+  sector3Ms    Int?
+  
+  // Track conditions
+  compound     String? // Tire compound
+  tyreLaps     Int?    // Age of tires
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  
+  // Relations
+  race     Race   @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  raceId   String
+  driver   Driver @relation(fields: [driverId], references: [id])
+  driverId String
+  
+  @@unique([raceId, driverId, lap])
+  @@map("lap_times")
+  @@index([raceId, lap])
+  @@index([driverId, milliseconds])
+  @@index([milliseconds]) // For fastest lap queries
+}
+
+model TelemetryData {
+  id        String   @id @default(cuid())
+  timestamp DateTime
+  
+  // Car telemetry
+  speed     Float?
+  throttle  Float?   // 0-100
+  brake     Float?   // 0-100
+  drs       Boolean? // DRS open/closed
+  gear      Int?     // Current gear
+  rpm       Int?     // Engine RPM
+  
+  // Position data
+  x         Float?
+  y         Float?
+  z         Float?
+  
+  // Additional metrics
+  gLat      Float?   // Lateral G-force
+  gLon      Float?   // Longitudinal G-force
+  
+  // Metadata - no updatedAt for performance
+  createdAt DateTime @default(now())
+  
+  // Relations
+  race     Race   @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  raceId   String
+  driver   Driver @relation(fields: [driverId], references: [id])
+  driverId String
+  
+  @@map("telemetry_data")
+  @@index([raceId, driverId, timestamp])
+  @@index([timestamp])
+}
+
+// ========================================
+// ANALYTICS & COMPUTED DATA
+// ========================================
+
+model SeasonStats {
+  id        String @id @default(cuid())
+  season    String
+  
+  // Computed statistics for fast dashboard queries
+  totalRaces        Int
+  totalDrivers      Int
+  totalConstructors Int
+  averageLapTime    Float?
+  fastestLapTime    Float?
+  fastestLapDriver  String?
+  totalOvertakes    Int?
+  
+  // Championship battle metrics
+  championshipLeader       String?
+  championshipLeaderPoints Float?
+  championshipGap          Float?
+  constructorLeader        String?
+  constructorLeaderPoints  Float?
+  
+  // Last computed timestamp
+  computedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([season])
+  @@map("season_stats")
+  @@index([season])
+}
+
+// ========================================
+// CACHING & PERFORMANCE
+// ========================================
+
+model CacheEntry {
+  key        String   @id
+  value      Json
+  expiresAt  DateTime
+  hitCount   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@map("cache_entries")
+  @@index([expiresAt])
+  @@index([hitCount])
+}
+
+model ApiLog {
+  id         String   @id @default(cuid())
+  endpoint   String
+  method     String
+  statusCode Int
+  duration   Int      // milliseconds
+  cached     Boolean  @default(false)
+  userAgent  String?
+  ipAddress  String?
+  timestamp  DateTime @default(now())
+  
+  @@map("api_logs")
+  @@index([endpoint, timestamp])
+  @@index([timestamp])
+  @@index([cached])
+}
