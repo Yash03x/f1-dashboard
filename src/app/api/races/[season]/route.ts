@@ -1,32 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { f1Repository } from '@/lib/database/repositories/F1Repository'
 import { testConnection } from '@/lib/database/connection'
+import { rateLimitMiddleware } from '@/lib/middleware/rateLimit'
+import { createValidationMiddleware, seasonSchema } from '@/lib/middleware/validation'
+import { createLogger } from '@/lib/logger'
+import { z } from 'zod'
+
+const logger = createLogger('api:races')
+
+// Validate season parameter
+const validateSeason = (season: string): boolean => {
+  return /^\d{4}$/.test(season)
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { season: string } }
 ) {
+  const startTime = Date.now()
+  
   try {
-    // Test database connection
-    const isConnected = await testConnection()
-    if (!isConnected) {
-      return NextResponse.json(
-        { error: 'Database connection failed' },
-        { status: 500 }
-      )
+    // Apply rate limiting
+    const rateLimitResult = rateLimitMiddleware(request)
+    if (rateLimitResult) {
+      return rateLimitResult
     }
 
-    const { season } = params
-
     // Validate season parameter
-    if (!season || !/^\d{4}$/.test(season)) {
+    const { season } = params
+    if (!validateSeason(season)) {
+      logger.warn('Invalid season parameter', { season })
       return NextResponse.json(
-        { error: 'Invalid season parameter. Must be a 4-digit year.' },
+        { 
+          error: 'Invalid season parameter',
+          message: 'Season must be a 4-digit year (e.g., 2024)',
+          received: season
+        },
         { status: 400 }
       )
     }
 
+    // Test database connection
+    const isConnected = await testConnection()
+    if (!isConnected) {
+      logger.error('Database connection failed')
+      return NextResponse.json(
+        { 
+          error: 'Service unavailable',
+          message: 'Database connection failed. Please try again later.'
+        },
+        { status: 503 }
+      )
+    }
+
     // Get races from database
+    logger.info('Fetching races', { season })
     const races = await f1Repository.getRacesBySeason(season)
 
     // Transform data for frontend consumption
@@ -69,21 +97,83 @@ export async function GET(
         })) : null
     }))
 
+    const duration = Date.now() - startTime
+    logger.info('Races fetched successfully', { 
+      season, 
+      count: transformedRaces.length,
+      duration 
+    })
+
     return NextResponse.json({
       data: transformedRaces,
       success: true,
       message: `Found ${transformedRaces.length} races for season ${season}`,
-      timestamp: new Date()
+      timestamp: new Date(),
+      metadata: {
+        season,
+        total_races: transformedRaces.length,
+        completed_races: transformedRaces.filter(r => r.status === 'completed').length,
+        upcoming_races: transformedRaces.filter(r => r.status === 'scheduled').length
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        'X-Response-Time': `${duration}ms`
+      }
     })
 
   } catch (error) {
-    console.error('Error fetching races:', error)
+    const duration = Date.now() - startTime
+    logger.error('Error fetching races', { 
+      season: params.season,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      duration
+    })
+
     return NextResponse.json(
       { 
-        error: 'Failed to fetch races',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Internal server error',
+        message: 'Failed to fetch races. Please try again later.',
+        timestamp: new Date()
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'X-Response-Time': `${duration}ms`
+        }
+      }
     )
   }
+}
+
+// Handle unsupported methods
+export async function POST(request: NextRequest) {
+  return NextResponse.json(
+    { 
+      error: 'Method not allowed',
+      message: 'POST method is not supported for this endpoint'
+    },
+    { status: 405 }
+  )
+}
+
+export async function PUT(request: NextRequest) {
+  return NextResponse.json(
+    { 
+      error: 'Method not allowed',
+      message: 'PUT method is not supported for this endpoint'
+    },
+    { status: 405 }
+  )
+}
+
+export async function DELETE(request: NextRequest) {
+  return NextResponse.json(
+    { 
+      error: 'Method not allowed',
+      message: 'DELETE method is not supported for this endpoint'
+    },
+    { status: 405 }
+  )
 }

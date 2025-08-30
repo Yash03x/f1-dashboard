@@ -9,13 +9,18 @@
     "lint": "next lint",
     "db:test": "tsx scripts/test-db.ts",
     "db:init": "tsx scripts/init-db.ts",
+    "migrate:status": "tsx scripts/migrate.ts status",
+    "migrate:up": "tsx scripts/migrate.ts up",
+    "migrate:down": "tsx scripts/migrate.ts down",
+    "migrate:create": "tsx scripts/migrate.ts create",
+    "migrate:reset": "tsx scripts/migrate.ts reset",
     "sync:seasons": "tsx scripts/sync-data.ts --type seasons",
     "sync:season": "tsx scripts/sync-data.ts --type season",
     "sync:complete": "tsx scripts/sync-data.ts --type complete",
     "sync:2024": "tsx scripts/sync-data.ts 2024",
     "sync:2023": "tsx scripts/sync-data.ts 2023",
     "sync:force": "tsx scripts/sync-data.ts --force",
-    "setup": "npm run db:init && npm run sync:seasons && npm run sync:2024"
+    "setup": "npm run db:init && npm run migrate:up && npm run sync:seasons && npm run sync:2024"
   },
   "dependencies": {
     "@types/d3": "^7.4.3",
@@ -38,7 +43,9 @@
     "tailwind-merge": "^2.0.0",
     "tailwindcss": "^3.3.0",
     "typescript": "^5",
-    "victory": "^36.6.11"
+    "victory": "^36.6.11",
+    "winston": "^3.11.0",
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "tsx": "^4.20.5"
